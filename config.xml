@@ -1,0 +1,48 @@
+<config>
+	<settings>
+		<move>True</move>
+		<notify>True</notify>
+		<debug>False</debug>
+	</settings>
+	<directories>
+		<source>/data/Drop/Media</source>
+		<destination>/data/Video/Series</destination>
+		<problems>/data/Drop/Media/Problems</problems>
+	</directories>
+	<tvdb>
+		<serviceurl>http://www.thetvdb.com/api</serviceurl>
+		<apikey></apikey>
+	</tvdb>
+	<delays>
+		<transfercheck>2</transfercheck>
+	</delays>
+	<notifications>
+		<credentials>
+			<username></username>
+			<password></password>
+		</credentials>
+		<mailhost>smtp.gmail.com:587</mailhost>
+		<from><![CDATA[Discordia <example@example.com>]]></from>
+		<to>example@example.com</to>
+		<subject>New $EpisodeType episode of $SeriesName added to library</subject>
+		<body><![CDATA[<h2>$SeriesName - Season $SeasonNumber ($EpisodeType)</h2>$EpisodeId - $EpisodeName<br/>Aired: $AirDate / Added: $AddedOn<br/><br/><b>Description</b><br/>$EpisodeDescription<br/><br/><br/><hr/><small>$DestinationPath filed<br/>$AdditionalInfo</small>]]></body>
+	</notifications>
+	<regex>
+		<safefilename>[/:;?"\']|--</safefilename>
+		<extension><![CDATA[([\w]{3,4})$]]></extension>
+		<episode type = "ota" extension = "mp4"><![CDATA[(?P<seriesname>[a-zA-Z0-9 .]+)(?:(?: - )(?P<episodename>[a-zA-Z0-9_.\'\- ,]*[a-zA-Z0-9]))?(?: +- +)(?:[sS](?P<seasonnumber>[0-9]{1,2})[eE](?P<episodenumber>[0-9]{1,2}))? \((?P<airdate>[0-9_]{10})\)\.(?P<extension>[a-z-AZ0-9]{3})]]></episode>
+		<episode type = "web" extension = "m4v" supersede = "True"><![CDATA[(?P<seriesname>.*) - Season (?P<seasonnumber>\d{1,2}) - (?P<episodenumber>\d{1,2}) (?P<episodename>.*) \(HD\)(?P<airdate>).(?P<extension>[\w]{3,4})]]></episode>
+	</regex>
+	<overrides>
+		<search>
+			<override pattern = "Archer">Archer (2009)</override>
+			<override pattern = "Intelligence">Intelligence (2014)</override>
+		<season>
+			<override pattern = "MythBusters" action = "add">3</override>
+			<override pattern = "Whose Line Is It Anyway" action = "add">8</override>
+		</season>
+		<name>
+			<override pattern = "Agents of S">Agents of SHIELD</override>
+		</name>
+	</overrides>
+</config>
