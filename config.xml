@@ -9,7 +9,19 @@
 		<destination>/data/Video/Series</destination>
 		<problems>/data/Drop/Media/Problems</problems>
 	</directories>
-	<tvdb>
+	<permissions set = "True">
+		<file>
+			<mode>0664</mode>
+			<user>root</user>
+			<group>admins</group>
+		</file>
+		<directory>
+			<mode>0665</mode>
+			<user>root</user>
+			<group>admins</group>
+		</directory>
+	</permissions>
+	<tvdb api = "True" web = "True">
 		<serviceurl>http://www.thetvdb.com/api</serviceurl>
 		<apikey></apikey>
 	</tvdb>

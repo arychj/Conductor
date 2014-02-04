@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import datetime, glob, time, os, re, shutil, smtplib, string, sys, urllib, urllib2
+import datetime, glob, grp, time, os, pwd, re, shutil, smtplib, string, sys, urllib, urllib2
 import xml.etree.ElementTree as ET
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -46,12 +46,12 @@ def Sanitize(s):
 
 def GetOverride(type, name):
 	for series in _config.findall('overrides/' + type + '/override'):
-		if re.search(series.attrib['pattern'], name):
-			if type == 'season' and 'action' in series.attrib:
-				if series.attrib['action'] == 'add':
-					return int(series.attrib['action'])
-				elif series.attrib['action'] == 'sub':
-					return -1 * int(series.attrib['action'])
+		if re.search(series.get('pattern'), name):
+			if type == 'season' and series.get('action') != None:
+				if series.get('action') == 'add':
+					return int(series.get('action'))
+				elif series.get('action') == 'sub':
+					return -1 * int(series.get('action'))
 			else:
 				return series.text
 
@@ -99,9 +99,9 @@ def ParseFile(file):
 
 	#if known file type
 	if episodetype != None:
-		details['EpisodeType'] = episodetype.attrib['type']
-		if 'supersede' in episodetype.attrib:
-			details['Supersede'] = episodetype.attrib['supersede']
+		details['EpisodeType'] = episodetype.get('type')
+		if episodetype.get('supersede') != None:
+			details['Supersede'] = episodetype.get('supersede')
 
 		m = re.match(episodetype.text, safefilename)
 		if m != None:
@@ -174,22 +174,34 @@ def Notify(details):
 	except Exception as e:
 		Write(e.message)
 
-def FileEpisode(details):
-	if _config.find('directories/destination').attrib['split'] != None:
-		buckets = int(_config.find('directories/destination').attrib['split'])
-		bucket = None
+def SetPermissions(path):
+	permissions = _config.find('permissions')
+	if permissions != None and permissions.get('set') == 'True':
+		type = 'file' if os.path.isfile(path) else 'directory'
+		mode = int(_config.find('permissions/' + type + '/mode').text, 8)
+		uid = pwd.getpwnam(_config.find('permissions/' + type + '/user').text).pw_uid
+		gid = grp.getgrnam(_config.find('permissions/' + type + '/group').text).gr_gid
 
-		start = 'A'
-		for i in xrange(26/buckets, (26 + 1), 26/buckets):
-			if ord(details['SeriesName'][0].upper()) - ord('A') < i:
-				bucket = start + '-' + chr(ord('A') + i - 1)
-				break
-			else:
-				start = chr(ord('A') + i)
-		
-		seriesdirectory = _config.find('directories/destination').text + '/' + bucket + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
-	else:
-		seriesdirectory = _config.find('directories/destination').text + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
+		os.chmod(path, mode)
+		os.chown(path, uid, gid)
+
+def FileEpisode(details, seriesdirectory = None):
+	if seriesdirectory == None:
+		if _config.find('directories/destination').get('split') != None:
+			buckets = int(_config.find('directories/destination').get('split'))
+			bucket = None
+
+			start = 'A'
+			for i in xrange(26/buckets, (26 + 1), 26/buckets):
+				if ord(details['SeriesName'][0].upper()) - ord('A') < i:
+					bucket = start + '-' + chr(ord('A') + i - 1)
+					break
+				else:
+					start = chr(ord('A') + i)
+			
+			seriesdirectory = _config.find('directories/destination').text + '/' + bucket + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
+		else:
+			seriesdirectory = _config.find('directories/destination').text + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
 
 	destpath = seriesdirectory + '/' + details['Filename']
 
@@ -200,6 +212,7 @@ def FileEpisode(details):
 			Write('\n\n>>> fake directory create ' + seriesdirectory + '<<<')
 		else:
 			os.makedirs(seriesdirectory)
+			SetPermissions(seriesdirectory)
 
 	existingEpisodes = glob.glob(_config.find('directories/destination').text + '/*/' + details['SeriesName'] + '/*/' + details['EpisodeId'] + '*')
 	if len(existingEpisodes) == 0:
@@ -207,6 +220,7 @@ def FileEpisode(details):
 			Write('\n\n>>> fake file move <<<\n')
 		else:
 			shutil.move(details['SourcePath'], destpath)
+			SetPermissions(destpath)
 		Write('done.')
 		return destpath
 	elif details['Supersede'] == 'True':
@@ -218,6 +232,7 @@ def FileEpisode(details):
 		else:
 			os.remove(existingEpisodes[0])
 			shutil.move(details['SourcePath'], destpath)
+			SetPermissions(destpath)
 		Write('done.')
 		return destpath
 	else:
@@ -258,18 +273,21 @@ def Discover():
 				Write('done.')
 
 			details = ParseFile(f)
+			details['SourcePath'] = sourcepath
+			details['AddedOn'] = datetime.datetime.now().strftime('%Y-%m-%d')
+
 			if details['Found'] == True:
-				details['AddedOn'] = datetime.datetime.now().strftime('%Y-%m-%d')
 				details['Filename'] = details['EpisodeId'] + ' - ' + details['EpisodeName'] + '.' + details['Extension']
-				details['SourcePath'] = sourcepath
 
 				Write('\n\tFiling episode... ')
-				details['DestinationPath'] = FileEpisode(details)
 
+				details['DestinationPath'] = FileEpisode(details)
 				if details['DestinationPath'] != None and _config.find('settings/notify').text == 'True':
 					Notify(details)
 			else:
 				Write('\n\tMoving to problem dir... ')
+
+				details['Filename'] = f
 				if FileEpisode(details, _config.find('directories/problems').text):
 					Write('done.')
 
