@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<config>
+  <settings>
+    <debug>false</debug>
+    <browser>iexplore.exe</browser>
+    <timelockformat>{0}.{1:yyyyMMddHHmmss}</timelockformat>
+    <filefilter>*.m4v</filefilter>
+    <destinationformat>{DestinationPath}\{SeriesName} - {SeasonName} - {EpisodeName}</destinationformat>
+  </settings>
+  <actions>
+    <download>true</download>
+    <discover>true</discover>
+    <move>true</move>
+    <cleanup>true</cleanup>
+  </actions>
+  <paths>
+    <source>%USERPROFILE%\Music\iTunes\iTunes Media\TV Shows</source>
+    <processing>c:\Temp</processing>
+    <destination>%USERPROFILE%\Media</destination>
+    <processor>processor.exe</processor>
+  </paths>
+  <email>
+    <host>imap.gmail.com</host>
+    <port>993</port>
+    <username>user</username>
+    <password>pass</password>
+  </email>
+  <delays>
+    <postprocess>300</postprocess>
+    <processingstartup>10</processingstartup>
+    <browserdownload>15</browserdownload>
+    <downloadlaunch>5</downloadlaunch>
+  </delays>
+  <regex>
+    <episodedownloadlink><![CDATA[The latest episode of (?<seriesname>.*), Season (?<seasonnumber>\d+) is.*\n(?<downloadlink>https://buy\.itunes\.apple\.com/.*)\n]]></episodedownloadlink>
+    <timelock>.*\.m4v\.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})</timelock>
+  </regex>
+  <itunes>
+    <seasonpass>
+      <inbox>INBOX</inbox>
+      <from>do_not_reply@itunes.com</from>
+      <ident>Season Pass Notification</ident>
+    </seasonpass>
+    <windowname>iTunes</windowname>
+    <downloadhandle>&amp;Download</downloadhandle>
+  </itunes>
+  <processor>
+    <arguments>command "{0}"</arguments>
+    <processname>javaw</processname>
+    <killtimethreshold>300</killtimethreshold>
+    <killmemorythreshold>50</killmemorythreshold>
+  </processor>
+</config>
