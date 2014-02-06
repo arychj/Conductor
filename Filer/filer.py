@@ -25,6 +25,8 @@ def Send(to, subject, body):
 	message['To'] = to
 
 	try:
+		body = re.sub(_config.find('regex/safeemail').text, '', body)
+		
 		part1 = MIMEText(re.sub('</?[a-zA-Z0-9]+/?>', '', body), 'plain')
 		part2 = MIMEText(body, 'html')
 
@@ -49,9 +51,9 @@ def GetOverride(type, name):
 		if re.search(series.get('pattern'), name):
 			if type == 'season' and series.get('action') != None:
 				if series.get('action') == 'add':
-					return int(series.get('action'))
+					return int(series.text)
 				elif series.get('action') == 'sub':
-					return -1 * int(series.get('action'))
+					return -1 * int(series.text)
 			else:
 				return series.text
 
@@ -106,7 +108,7 @@ def ParseFile(file):
 		m = re.match(episodetype.text, safefilename)
 		if m != None:
 			Write('done.')
-	
+			
 			details['SearchName'] = GetOverride('search', m.group('seriesname'))
 			details['SeriesName'] = GetOverride('name', m.group('seriesname'))
 			details['SeasonNumber'] = int(m.group('seasonnumber')) + GetOverride('season', details['SearchName'])
@@ -155,6 +157,8 @@ def ParseFile(file):
 						Write('not found.')
 			except:
 				Write('error.')
+		else:
+			Write('unknown file name format.')
 	else:
 		Write('unknown file type.')
 
@@ -213,7 +217,7 @@ def FileEpisode(details, seriesdirectory = None):
 		else:
 			os.makedirs(seriesdirectory)
 			SetPermissions(seriesdirectory)
-
+	
 	existingEpisodes = glob.glob(_config.find('directories/destination').text + '/*/' + details['SeriesName'] + '/*/' + details['EpisodeId'] + '*')
 	if len(existingEpisodes) == 0:
 		if _config.find('settings/debug').text != 'False':
