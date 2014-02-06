@@ -25,7 +25,7 @@ def Send(to, subject, body):
 
 	try:
 		body = re.sub(_config.find('regex/safeemail').text, '', body)
-		
+
 		part1 = MIMEText(re.sub('</?[a-zA-Z0-9]+/?>', '', body), 'plain')
 		part2 = MIMEText(body, 'html')
 
@@ -125,24 +125,21 @@ def ParseFile(file):
 
 				if details['SeasonNumber'] != None and details['EpisodeNumber'] != None:
 					try:
-						try:
-							api = __import__('pytvdbapi', fromlist=['api']).api
-							tvdb = api.TVDB(_config.find('tvdb/apikey').text)
-							series = tvdb.search(details['SearchName'], 'en')[0]
-							
-							series.update()
-							episode = series[details['SeasonNumber']][details['EpisodeNumber']]
+						api = __import__('pytvdbapi', fromlist=['api']).api
+						tvdb = api.TVDB(_config.find('tvdb/apikey').text)
+						series = tvdb.search(details['SearchName'], 'en')[0]
+						
+						series.update()
+						episode = series[details['SeasonNumber']][details['EpisodeNumber']]
 
-							if episode != None:
-								Write('found.')
+						if episode != None:
+							Write('found.')
 
-								details['Found'] = True
-								details['EpisodeId'] = 'S' + str(episode.SeasonNumber).zfill(2) + 'E' + str(episode.EpisodeNumber).zfill(2)
-								details['EpisodeName'] = Sanitize(episode.EpisodeName)
-								details['EpisodeDescription'] = episode.Overview
-								details['AirDate'] = episode.FirstAired
-						except ImportError:
-							pass
+							details['Found'] = True
+							details['EpisodeId'] = 'S' + str(episode.SeasonNumber).zfill(2) + 'E' + str(episode.EpisodeNumber).zfill(2)
+							details['EpisodeName'] = Sanitize(episode.EpisodeName)
+							details['EpisodeDescription'] = episode.Overview
+							details['AirDate'] = episode.FirstAired
 					except:
 						pass
 
