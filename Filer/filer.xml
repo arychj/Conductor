@@ -41,7 +41,7 @@
 		<body><![CDATA[<h2>$SeriesName - Season $SeasonNumber ($EpisodeType)</h2>$EpisodeId - $EpisodeName<br/>Aired: $AirDate / Added: $AddedOn<br/><br/><b>Description</b><br/>$EpisodeDescription<br/><br/><br/><hr/><small>$DestinationPath filed<br/>$AdditionalInfo</small>]]></body>
 	</notifications>
 	<regex>
-		<safeemail>[^\u0000-\u007F]</safeemail>
+		<safeemail>[^\x00-\x7F]</safeemail>
 		<safefilename>[/:;?"\']|--</safefilename>
 		<extension><![CDATA[([\w]{3,4})$]]></extension>
 		<episode type = "ota" extension = "mp4"><![CDATA[(?P<seriesname>[a-zA-Z0-9 .]+)(?:(?: - )(?P<episodename>[a-zA-Z0-9_.\'\- ,]*[a-zA-Z0-9.]))?(?: +- +)(?:[sS](?P<seasonnumber>[0-9]{1,2})[eE](?P<episodenumber>[0-9]{1,2}))? \((?P<airdate>[0-9_]{10})\)\.(?P<extension>[a-zA-Z0-9]{3})]]></episode>

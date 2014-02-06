@@ -5,7 +5,6 @@ import xml.etree.ElementTree as ET
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 from sys import stdout
-from pytvdbapi import api
 
 _config = None
 
@@ -120,26 +119,30 @@ def ParseFile(file):
 			if _config.find('settings/alphapostthe').text == 'True':
 				if details['SeriesName'][:3] == 'The':
 					details['SeriesName'] = details['SeriesName'][4:] + ', The'
-			
+
 			try:
 				Write('\n\tQuerying series archive... ')
 
 				if details['SeasonNumber'] != None and details['EpisodeNumber'] != None:
 					try:
-						tvdb = api.TVDB(_config.find('tvdb/apikey').text)
-						series = tvdb.search(details['SearchName'], 'en')[0]
-						
-						series.update()
-						episode = series[details['SeasonNumber']][details['EpisodeNumber']]
+						try:
+							api = __import__('pytvdbapi', fromlist=['api']).api
+							tvdb = api.TVDB(_config.find('tvdb/apikey').text)
+							series = tvdb.search(details['SearchName'], 'en')[0]
+							
+							series.update()
+							episode = series[details['SeasonNumber']][details['EpisodeNumber']]
 
-						if episode != None:
-							Write('found.')
+							if episode != None:
+								Write('found.')
 
-							details['Found'] = True
-							details['EpisodeId'] = 'S' + str(episode.SeasonNumber).zfill(2) + 'E' + str(episode.EpisodeNumber).zfill(2)
-							details['EpisodeName'] = Sanitize(episode.EpisodeName)
-							details['EpisodeDescription'] = episode.Overview
-							details['AirDate'] = episode.FirstAired
+								details['Found'] = True
+								details['EpisodeId'] = 'S' + str(episode.SeasonNumber).zfill(2) + 'E' + str(episode.EpisodeNumber).zfill(2)
+								details['EpisodeName'] = Sanitize(episode.EpisodeName)
+								details['EpisodeDescription'] = episode.Overview
+								details['AirDate'] = episode.FirstAired
+						except ImportError:
+							pass
 					except:
 						pass
 
