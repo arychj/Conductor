@@ -117,6 +117,10 @@ def ParseFile(file):
 			details['AirDate'] = m.group('airdate')
 			details['Extension'] = m.group('extension')
 
+			if _config.find('settings/alphapostthe').text == 'True':
+				if details['SeriesName'][:3] == 'The':
+					details['SeriesName'] = details['SeriesName'][4:] + ', The'
+			
 			try:
 				Write('\n\tQuerying series archive... ')
 

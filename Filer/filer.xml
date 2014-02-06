@@ -1,8 +1,9 @@
 <config>
 	<settings>
+		<debug>False</debug>
 		<move>True</move>
 		<notify>True</notify>
-		<debug>False</debug>
+		<alphapostthe>True</alphapostthe>
 	</settings>
 	<directories>
 		<source>/data/Drop/Media</source>
