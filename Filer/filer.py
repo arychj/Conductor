@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import datetime, glob, grp, time, os, pwd, re, shutil, smtplib, string, sys, urllib, urllib2
+import datetime, glob, grp, time, os, pwd, re, shutil, smtplib, string, sys, traceback, urllib, urllib2
 import xml.etree.ElementTree as ET
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -45,22 +45,32 @@ def Send(to, subject, body):
 def Sanitize(s):
     return re.sub(_config.find('regex/safefilename').text, '', s)
 
-def GetOverride(type, name):
-	for series in _config.findall('overrides/' + type + '/override'):
+def GetOverride(overridetype, name, original = None):
+	for series in _config.findall('overrides/' + overridetype + '/override'):
 		if re.search(series.get('pattern'), name):
-			if type == 'season' and series.get('action') != None:
+			if overridetype in ['episode', 'season'] and series.get('action') != None:
 				if series.get('action') == 'add':
 					return int(series.text)
 				elif series.get('action') == 'sub':
 					return -1 * int(series.text)
+				elif series.get('action') == 'offset':
+					override = ((int(original) + int(series.text)) / 2) - int(original)
+					if(isinstance(override, int)):
+						return override
+					else:
+						return None
+			elif overridetype == 'extras':
+				return int(series.text)
 			else:
 				return series.text
 
 	#defaults
-	if type == 'season':
+	if overridetype in ['episode', 'season']:
 		return 0
-	elif type == 'name' and name[:3] == 'The':
+	elif overridetype == 'name' and name[:3] == 'The':
 		return name[4:] + ', The'
+	elif overridetype == 'extras':
+		return None
 	else:
 		return name
 
@@ -90,6 +100,7 @@ def ParseFile(file):
 		'AirDate': None,
 		'Extension': None,
 		'EpisodeType': None,
+		'IsExtra': None,
 		'Supersede': None,
 		'AdditionalInfo': ''
 	}
@@ -108,59 +119,65 @@ def ParseFile(file):
 		if m != None:
 			Write('done.')
 			
-			details['SearchName'] = GetOverride('search', m.group('seriesname'))
-			details['SeriesName'] = GetOverride('name', m.group('seriesname'))
-			details['SeasonNumber'] = int(m.group('seasonnumber')) + GetOverride('season', details['SearchName'])
-			details['EpisodeNumber'] = int(m.group('episodenumber'))
-			details['EpisodeName'] = m.group('episodename')
-			details['AirDate'] = m.group('airdate')
-			details['Extension'] = m.group('extension')
-
-			if _config.find('settings/alphapostthe').text == 'True':
-				if details['SeriesName'][:3] == 'The':
-					details['SeriesName'] = details['SeriesName'][4:] + ', The'
-
 			try:
-				Write('\n\tQuerying series archive... ')
+				details['SearchName'] = GetOverride('search', m.group('seriesname'))
+				details['SeriesName'] = GetOverride('name', m.group('seriesname'))
+				details['SeasonNumber'] = int(m.group('seasonnumber')) + GetOverride('season', details['SearchName'])
+				details['EpisodeNumber'] = int(m.group('episodenumber')) + GetOverride('episode', details['SearchName'], m.group('episodenumber'))
+				details['EpisodeName'] = m.group('episodename')
+				details['AirDate'] = m.group('airdate')
+				details['Extension'] = m.group('extension')
 
-				if details['SeasonNumber'] != None and details['EpisodeNumber'] != None:
-					try:
-						api = __import__('pytvdbapi', fromlist=['api']).api
-						tvdb = api.TVDB(_config.find('tvdb/apikey').text)
-						series = tvdb.search(details['SearchName'], 'en')[0]
-						
-						series.update()
-						episode = series[details['SeasonNumber']][details['EpisodeNumber']]
+				extrasValue = GetOverride('extras', m.group('seriesname'))
+				if extrasValue != None and details['EpisodeNumber'] >= extrasValue:
+					details['IsExtra'] = True
+				else:
+					details['IsExtra'] = False
 
-						if episode != None:
+					if _config.find('settings/alphapostthe').text == 'True':
+						if details['SeriesName'][:3] == 'The':
+							details['SeriesName'] = details['SeriesName'][4:] + ', The'
+
+					Write('\n\tQuerying series archive... ')
+
+					if details['SeasonNumber'] != None and details['EpisodeNumber'] != None:
+						try:
+							api = __import__('pytvdbapi', fromlist=['api']).api
+							tvdb = api.TVDB(_config.find('tvdb/apikey').text)
+							series = tvdb.search(details['SearchName'], 'en')[0]
+							
+							series.update()
+							episode = series[details['SeasonNumber']][details['EpisodeNumber']]
+
+							if episode != None:
+								Write('found.')
+
+								details['Found'] = True
+								details['EpisodeId'] = 'S' + str(episode.SeasonNumber).zfill(2) + 'E' + str(episode.EpisodeNumber).zfill(2)
+								details['EpisodeName'] = Sanitize(episode.EpisodeName)
+								details['EpisodeDescription'] = episode.Overview
+								details['AirDate'] = episode.FirstAired
+						except:
+							pass
+
+					if details['Found'] == False:
+						Write('not found.\n\tQuerying episode airdate... ')
+						rSeries = CallTVDB('GetSeries', {'seriesname': details['SearchName']})
+						seriesid = rSeries.findall('./Series/seriesid')[0].text
+						rEpisode = CallTVDB('GetEpisodeByAirDate', {'seriesid': seriesid, 'airdate': details['AirDate'].replace('_', '-')})
+
+						if len(rEpisode.findall('./Error')) == 0:
 							Write('found.')
 
 							details['Found'] = True
-							details['EpisodeId'] = 'S' + str(episode.SeasonNumber).zfill(2) + 'E' + str(episode.EpisodeNumber).zfill(2)
-							details['EpisodeName'] = Sanitize(episode.EpisodeName)
-							details['EpisodeDescription'] = episode.Overview
-							details['AirDate'] = episode.FirstAired
-					except:
-						pass
-
-				if details['Found'] == False:
-					Write('not found.\n\tQuerying episode airdate... ')
-					rSeries = CallTVDB('GetSeries', {'seriesname': details['SearchName']})
-					seriesid = rSeries.findall('./Series/seriesid')[0].text
-					rEpisode = CallTVDB('GetEpisodeByAirDate', {'seriesid': seriesid, 'airdate': details['AirDate'].replace('_', '-')})
-
-					if len(rEpisode.findall('./Error')) == 0:
-						Write('found.')
-
-						details['Found'] = True
-						details['EpisodeId'] = 'S' + str(rEpisode.findall('./Episode/SeasonNumber')[0].text).zfill(2) + 'E' + str(rEpisode.findall('./Episode/EpisodeNumber')[0].text).zfill(2)
-						details['AirDate'] = rEpisode.findall('./Episode/FirstAired')[0].text
-						details['EpisodeName'] = Sanitize(rEpisode.findall('./Episode/EpisodeName')[0].text)
-						details['EpisodeDescription'] = rEpisode.findall('./Episode/Overview')[0].text
-					else:
-						Write('not found.')
-			except:
-				Write('error.')
+							details['EpisodeId'] = 'S' + str(rEpisode.findall('./Episode/SeasonNumber')[0].text).zfill(2) + 'E' + str(rEpisode.findall('./Episode/EpisodeNumber')[0].text).zfill(2)
+							details['AirDate'] = rEpisode.findall('./Episode/FirstAired')[0].text
+							details['EpisodeName'] = Sanitize(rEpisode.findall('./Episode/EpisodeName')[0].text)
+							details['EpisodeDescription'] = rEpisode.findall('./Episode/Overview')[0].text
+						else:
+							Write('not found.')
+			except Exception as e:
+				Write('\n%s: %s' % (type(e), str(e)))
 		else:
 			Write('unknown file name format.')
 	else:
@@ -193,64 +210,81 @@ def SetPermissions(path):
 		os.chmod(path, mode)
 		os.chown(path, uid, gid)
 
-def FileEpisode(details, seriesdirectory = None):
-	if seriesdirectory == None:
-		if _config.find('directories/destination').get('split') != None:
-			buckets = int(_config.find('directories/destination').get('split'))
-			bucket = None
-
-			start = 'A'
-			for i in xrange(26/buckets, (26 + 1), 26/buckets):
-				if ord(details['SeriesName'][0].upper()) - ord('A') < i:
-					bucket = start + '-' + chr(ord('A') + i - 1)
-					break
-				else:
-					start = chr(ord('A') + i)
-			
-			seriesdirectory = _config.find('directories/destination').text + '/' + bucket + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
-		else:
-			seriesdirectory = _config.find('directories/destination').text + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
-
-	destpath = seriesdirectory + '/' + details['Filename']
-
-	Write('\n\t\tMoving to \'' + destpath + '\'... ')
-
-	if os.path.isdir(seriesdirectory) != True:
+def FileEpisode(details, seriesdirectory = None, problem = False):
+	if details['IsExtra'] == True:
 		if _config.find('settings/debug').text != 'False':
-			Write('\n\n>>> fake directory create ' + seriesdirectory + '<<<')
+			Write('\n\n>>> fake file delete <<<\n')
 		else:
-			os.makedirs(seriesdirectory)
-			SetPermissions(seriesdirectory)
-	
-	existingEpisodes = glob.glob(_config.find('directories/destination').text + '/*/' + details['SeriesName'] + '/*/' + details['EpisodeId'] + '*')
-	if len(existingEpisodes) == 0:
-		if _config.find('settings/debug').text != 'False':
-			Write('\n\n>>> fake file move <<<\n')
-		else:
-			shutil.move(details['SourcePath'], destpath)
-			SetPermissions(destpath)
-		Write('done.')
-		return destpath
-	elif details['Supersede'] == 'True':
-		Write('episode exists, superseding... ')
-		details['AdditionalInfo'] += existingEpisodes[0] + ' superseded'
+			Write('episode is extra, deleting... ')
+			os.remove(details['SourcePath'])
+			Write('done.')
 
-		if _config.find('settings/debug').text != 'False':
-			Write('\n\n>>> fake file move <<<\n')
-		else:
-			os.remove(existingEpisodes[0])
-			shutil.move(details['SourcePath'], destpath)
-			SetPermissions(destpath)
-		Write('done.')
-		return destpath
-	else:
-		Write('episode exists.')
-		if _config.find('settings/debug').text != 'False':
-			Write('\n\n>>> fake file move <<<\n')
-		else:
-			shutil.move(details['SourcePath'], _config.find('directories/problems').text + '/' + f)
-		Write('\n\t\tPlaced in problems directory.')
 		return None
+	else:
+		if seriesdirectory == None:
+			if _config.find('directories/destination').get('split') != None:
+				buckets = int(_config.find('directories/destination').get('split'))
+				bucket = None
+
+				start = 'A'
+				for i in xrange(26/buckets, (26 + 1), 26/buckets):
+					if ord(details['SeriesName'][0].upper()) - ord('A') < i:
+						bucket = start + '-' + chr(ord('A') + i - 1)
+						break
+					else:
+						start = chr(ord('A') + i)
+				
+				seriesdirectory = _config.find('directories/destination').text + '/' + bucket + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
+			else:
+				seriesdirectory = _config.find('directories/destination').text + '/' + details['SeriesName'] + '/Season ' + str(details['SeasonNumber'])
+
+		destpath = seriesdirectory + '/' + details['Filename']
+
+		Write('\n\t\tMoving to \'' + destpath + '\'... ')
+
+		if os.path.isdir(seriesdirectory) != True:
+			if _config.find('settings/debug').text != 'False':
+				Write('\n\n>>> fake directory create ' + seriesdirectory + '<<<')
+			else:
+				os.makedirs(seriesdirectory)
+				SetPermissions(seriesdirectory)
+		
+		if problem == True:
+			shutil.move(details['SourcePath'], destpath)
+			SetPermissions(destpath)
+			Write('done.')
+			return None
+		else:
+			existingEpisodes = glob.glob(_config.find('directories/destination').text + '/*/' + details['SeriesName'] + '/*/' + details['EpisodeId'] + '*')
+			if len(existingEpisodes) == 0:
+				if _config.find('settings/debug').text != 'False':
+					Write('\n\n>>> fake file move <<<\n')
+				else:
+					shutil.move(details['SourcePath'], destpath)
+					SetPermissions(destpath)
+				Write('done.')
+				return destpath
+			elif details['Supersede'] == 'True':
+				Write('episode exists, superseding... ')
+				details['AdditionalInfo'] += existingEpisodes[0] + ' superseded'
+
+				if _config.find('settings/debug').text != 'False':
+					Write('\n\n>>> fake file move <<<\n')
+				else:
+					os.remove(existingEpisodes[0])
+					shutil.move(details['SourcePath'], destpath)
+					SetPermissions(destpath)
+
+				Write('done.')
+				return destpath
+			else:
+				Write('episode exists.')
+				if _config.find('settings/debug').text != 'False':
+					Write('\n\n>>> fake file move <<<\n')
+				else:
+					shutil.move(details['SourcePath'], _config.find('directories/problems').text + '/' + details['SeriesName'] + ' - ' + details['Filename'])
+				Write('\n\t\tPlaced in problems directory.')
+				return None
 
 def Discover():
 	outputstarted = False
@@ -296,7 +330,7 @@ def Discover():
 				Write('\n\tMoving to problem dir... ')
 
 				details['Filename'] = f
-				if FileEpisode(details, _config.find('directories/problems').text):
+				if FileEpisode(details, _config.find('directories/problems').text, True):
 					Write('done.')
 
 	Write('\n')

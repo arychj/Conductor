@@ -44,8 +44,8 @@
 		<safeemail>[^\x00-\x7F]</safeemail>
 		<safefilename>[/:;?"\']|--</safefilename>
 		<extension><![CDATA[([\w]{3,4})$]]></extension>
-		<episode type = "ota" extension = "mp4"><![CDATA[(?P<seriesname>[a-zA-Z0-9 .]+)(?:(?: - )(?P<episodename>[a-zA-Z0-9_.\'\- ,]*[a-zA-Z0-9.]))?(?: +- +)(?:[sS](?P<seasonnumber>[0-9]{1,2})[eE](?P<episodenumber>[0-9]{1,2}))? \((?P<airdate>[0-9_]{10})\)\.(?P<extension>[a-zA-Z0-9]{3})]]></episode>
-		<episode type = "web" extension = "m4v" supersede = "True"><![CDATA[(?P<seriesname>.*) - Season (?P<seasonnumber>\d{1,2}) - (?P<episodenumber>\d{1,2}) (?P<episodename>.*) \(HD\)(?P<airdate>).(?P<extension>[\w]{3,4})]]></episode>
+		<episode type = "ota" extension = "mp4"><![CDATA[(?P<seriesname>[a-zA-Z0-9 .]+)(?:(?: - )(?P<episodename>[a-zA-Z0-9_.\'\- ,]*[a-zA-Z0-9.]))?(?: +- +)[sS](?P<seasonnumber>[0-9]{1,2})[eE](?P<episodenumber>[0-9]{1,2}) \((?P<airdate>[0-9_]{10})\)\.(?P<extension>[a-zA-Z0-9]{3})]]></episode>
+		<episode type = "web" extension = "m4v" supersede = "True"><![CDATA[(?P<seriesname>.*?) - Season (?P<seasonnumber>\d{1,2}) - (?P<episodenumber>\d{1,2}) (?P<episodename>.*?)(?: \(HD\)(?P<airdate>))?\.(?P<extension>[\w]{3,4})]]></episode>
 	</regex>
 	<overrides>
 		<search>
@@ -54,8 +54,12 @@
 		</search>
 		<season>
 			<override pattern = "MythBusters" action = "add">3</override>
+			<override pattern = "Orphan Black" action = "offset">1</override>
 			<override pattern = "Whose Line Is It Anyway" action = "add">8</override>
 		</season>
+		<extras>
+			<override pattern = "Falling Skies">100</override>
+		</extras>
 		<name>
 			<override pattern = "Agents of S">Agents of SHIELD</override>
 			<override pattern = "Layover">Layover, The</override>
