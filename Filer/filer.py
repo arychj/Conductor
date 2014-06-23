@@ -120,11 +120,17 @@ def ParseFile(file):
 			Write('done.')
 			
 			try:
-				details['SearchName'] = GetOverride('search', m.group('seriesname'))
-				details['SeriesName'] = GetOverride('name', m.group('seriesname'))
+				if episodetype.get('dotspace') == 'True':
+					details['SeriesName'] = m.group('seriesname').replace('.', ' ').strip()
+					details['EpisodeName'] = m.group('episodename').replace('.', ' ').strip()
+				else:
+					details['SeriesName'] = m.group('seriesname')
+					details['EpisodeName'] = m.group('episodename')
+
+				details['SearchName'] = GetOverride('search', details['SeriesName'])
+				details['SeriesName'] = GetOverride('name', details['SeriesName'])
 				details['SeasonNumber'] = int(m.group('seasonnumber')) + GetOverride('season', details['SearchName'])
 				details['EpisodeNumber'] = int(m.group('episodenumber')) + GetOverride('episode', details['SearchName'], m.group('episodenumber'))
-				details['EpisodeName'] = m.group('episodename')
 				details['AirDate'] = m.group('airdate')
 				details['Extension'] = m.group('extension')
 
@@ -265,7 +271,7 @@ def FileEpisode(details, seriesdirectory = None, problem = False):
 				Write('done.')
 				return destpath
 			elif details['Supersede'] == 'True':
-				Write('episode exists, superseding... ')
+				Write('\n\t\tEpisode exists, superseding... ')
 				details['AdditionalInfo'] += existingEpisodes[0] + ' superseded'
 
 				if _config.find('settings/debug').text != 'False':
@@ -292,9 +298,25 @@ def Discover():
 
 	listing = os.listdir(root)
 	for f in listing:
+		iscandidate = False
 		sourcepath = root + '/' + f
+		originalpath = None
 
 		if os.path.isfile(sourcepath):
+			iscandidate = True
+		else:
+			for episodetype in _config.findall('regex/episode'):
+				searchfor = re.sub(r'([\[\]])', r'?', sourcepath) + '/*.' + episodetype.get('extension')
+				episodes = glob.glob(searchfor)
+
+				if len(episodes) == 1:
+					originalpath = sourcepath
+					sourcepath = episodes[0]
+					f = os.path.split(sourcepath)[-1]
+					iscandidate = True
+					break
+
+		if iscandidate == True:
 			if outputstarted == False:
 				outputstarted = True
 				Write('\n' + str(datetime.datetime.now()) + '\n')
@@ -310,6 +332,14 @@ def Discover():
 			#if the file size has changed then transfer is in prtress, skip the file
 			if sizecheck0 != sizecheck1:
 				Write('xfer not complete.\n')
+				continue
+			else:
+				Write('done.')
+
+			#ensure file is done being copied
+			Write('\n\tChecking completeness status... ')
+			if os.path.getmtime(sourcepath) > (time.time() - int(_config.find('delays/transferpadding').text)):
+				Write('cannot guarantee file is complete, waiting until next interval.\n')
 				continue
 			else:
 				Write('done.')
@@ -331,6 +361,14 @@ def Discover():
 
 				details['Filename'] = f
 				if FileEpisode(details, _config.find('directories/problems').text, True):
+					Write('done.')
+
+			if originalpath != None:
+				if _config.find('settings/debug').text != 'False':
+					Write('\n>>> fake file delete <<<\n')
+				else:
+					Write('\n\tRemoving episode directory container... ')
+					shutil.rmtree(originalpath)
 					Write('done.')
 
 	Write('\n')
